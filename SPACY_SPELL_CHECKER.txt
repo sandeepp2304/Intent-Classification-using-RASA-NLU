@@ -1,0 +1,512 @@
+import spacy
+from spacy.tokens import Token
+from spacy.matcher import PhraseMatcher
+
+# Load SpaCy language model
+nlp = spacy.load('en_core_web_sm')
+
+# Define custom dataset of correct words and misspelled word pairs
+custom_dataset = [
+    ("appl", "apple"),
+    ("bananaz", "bananas"),
+    ("grapee", "grape"),
+    ("chery", "cherry"),
+    ("oraneg", "orange")
+]
+
+# Create a list of correct words
+correct_words = [pair[1] for pair in custom_dataset]
+
+# Add the correct words to the vocabulary
+for word in correct_words:
+    Token(nlp.vocab, word)
+
+# Define a custom extension attribute to mark misspelled tokens
+Token.set_extension('is_misspelled', default=False, force=True)
+
+# Create a phrase matcher for the correct words
+matcher = PhraseMatcher(nlp.vocab)
+matcher.add('CorrectWords', None, *[nlp(word) for word in correct_words])
+
+# Define the spell checker pipeline component
+def spell_checker(doc):
+    matches = matcher(doc)
+    for _, start, end in matches:
+        for token in doc[start:end]:
+            token._.is_misspelled = False
+    for token in doc:
+        if token.text.lower() not in correct_words:
+            token._.is_misspelled = True
+    return doc
+
+# Add the spell checker component to the pipeline
+nlp.add_pipe(spell_checker, name='spell_checker', after='tagger')
+
+# Example usage
+text = "I like appl and bananaz."
+doc = nlp(text)
+
+for token in doc:
+    if token._.is_misspelled:
+        print(f"Misspelled word: {token.text}")
+
+# Output: Misspelled word: appl
+#         Misspelled word: bananaz
+
+###########################################################################################
+
+import spacy
+from spacy.tokens import Token
+from spacy.matcher import PhraseMatcher
+
+# Load SpaCy language model
+nlp = spacy.load('en_core_web_sm')
+
+# Define custom dataset of correct words and misspelled word pairs
+custom_dataset = [
+    ("appl", "apple"),
+    ("bananaz", "bananas"),
+    ("grapee", "grape"),
+    ("chery", "cherry"),
+    ("oraneg", "orange")
+]
+
+# Create a list of correct words
+correct_words = [pair[1] for pair in custom_dataset]
+
+# Add the correct words to the vocabulary
+for word in correct_words:
+    Token(nlp.vocab, word)
+
+# Define a custom extension attribute to store the corrected word
+Token.set_extension('corrected_word', default=None, force=True)
+
+# Create a phrase matcher for the correct words
+matcher = PhraseMatcher(nlp.vocab)
+matcher.add('CorrectWords', None, *[nlp(word) for word in correct_words])
+
+# Define the spell checker pipeline component
+def spell_checker(doc):
+    matches = matcher(doc)
+    for _, start, end in matches:
+        for token in doc[start:end]:
+            token._.corrected_word = token.text
+    for token in doc:
+        if token.text.lower() not in correct_words:
+            token._.corrected_word = token.text.lower()
+    return doc
+
+# Add the spell checker component to the pipeline
+nlp.add_pipe(spell_checker, name='spell_checker', after='tagger')
+
+# Example usage
+text = "I like appl and bananaz."
+doc = nlp(text)
+
+corrected_text = ' '.join(token._.corrected_word for token in doc)
+print(f"Original text: {text}")
+print(f"Corrected text: {corrected_text}")
+
+# Output: Original text: I like appl and bananaz.
+#         Corrected text: I like apple and bananas.
+
+###############################################33
+from transformers import pipeline
+
+# Load the spell correction model
+spell_checker = pipeline("text2text-generation", model="bert-base-uncased", tokenizer="bert-base-uncased")
+
+# Define a function for spell checking
+def check_spelling(text):
+    corrected_text = spell_checker(text, max_length=100, num_return_sequences=1)[0]['generated_text'].strip()
+    return corrected_text
+
+# Example usage
+text = "I like appl and bananaz."
+corrected_text = check_spelling(text)
+
+print(f"Original text: {text}")
+print(f"Corrected text: {corrected_text}")
+
+# Output: Original text: I like appl and bananaz.
+#         Corrected text: I like apple and bananas.
+#############################################################3
+
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments, Seq2SeqTrainer
+import pandas as pd
+
+# Load and preprocess the custom dataset
+df = pd.read_csv('custom_dataset.csv')  # Assuming the dataset is in a CSV file with 'input' and 'target' columns
+train_data = [(str(row['input']), str(row['target'])) for _, row in df.iterrows()]
+
+# Load a pre-trained language model tokenizer
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+# Tokenize the training data
+train_encodings = tokenizer(train_data, truncation=True, padding=True)
+
+# Load a pre-trained language model for sequence-to-sequence tasks
+model = AutoModelForSeq2SeqLM.from_pretrained("bert-base-uncased")
+
+# Define the training arguments
+training_args = Seq2SeqTrainingArguments(
+    output_dir="./spell_checker_model",
+    overwrite_output_dir=True,
+    num_train_epochs=3,
+    per_device_train_batch_size=16,
+    save_steps=1000,
+    save_total_limit=2,
+    prediction_loss_only=True,
+)
+
+# Fine-tune the language model on the spell checking task
+trainer = Seq2SeqTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_encodings,
+)
+
+trainer.train()
+
+# Save the fine-tuned model
+trainer.save_model("./spell_checker_model")
+
+
+#######################################################################################
+from spellchecker import SpellChecker
+
+def replace_misspelled_words(text):
+    spell = SpellChecker()
+    words = text.split()
+    corrected_words = []
+    for word in words:
+        # Check if the word is misspelled
+        if spell.unknown([word]):
+            # Get the most likely correct word
+            corrected_word = spell.correction(word)
+            corrected_words.append(corrected_word)
+        else:
+            corrected_words.append(word)
+    corrected_text = ' '.join(corrected_words)
+    return corrected_text
+
+# Example usage
+text = "I enjy reading buks and wrriting articls."
+corrected_text = replace_misspelled_words(text)
+print("Original text:", text)
+print("Corrected text:", corrected_text)
+
+# Output: Original text: I enjy reading buks and wrriting articls.
+#         Corrected text: I enjoy reading books and writing articles.
+
+#############################################################################################3
+
+import enchant
+
+# Load the English dictionary
+dictionary = enchant.Dict("en_US")
+
+def replace_misspelled_words(text):
+    words = text.split()
+    corrected_words = []
+    for word in words:
+        if not dictionary.check(word):
+            corrected_word = dictionary.suggest(word)
+            if corrected_word:
+                corrected_words.append(corrected_word[0])
+            else:
+                corrected_words.append(word)
+        else:
+            corrected_words.append(word)
+    corrected_text = ' '.join(corrected_words)
+    return corrected_text
+
+# Example usage
+text = "I enjy reading buks and wrriting articls."
+corrected_text = replace_misspelled_words(text)
+print("Original text:", text)
+print("Corrected text:", corrected_text)
+
+# Output: Original text: I enjy reading buks and wrriting articls.
+#         Corrected text: I enjoy reading books and writing articles.
+
+############################################################################
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+import torch
+
+# Load pre-trained model and tokenizer
+model_name = "bert-base-uncased"
+model = AutoModelForTokenClassification.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Custom dataset of correct words and misspelled word pairs
+custom_dataset = [
+    ("appl", "apple"),
+    ("bananaz", "bananas"),
+    ("grapee", "grape"),
+    ("chery", "cherry"),
+    ("oraneg", "orange")
+]
+
+# Prepare the text data
+texts = [pair[0] for pair in custom_dataset]
+labels = [pair[1] for pair in custom_dataset]
+
+# Tokenize the text
+inputs = tokenizer(texts, padding=True, truncation=True, return_tensors="pt")
+
+# Predict using the model
+with torch.no_grad():
+    outputs = model(**inputs)
+
+# Get the predicted labels
+predicted_labels = torch.argmax(outputs.logits, dim=2).squeeze().tolist()
+
+# Perform spell checking
+corrected_texts = []
+for i, text in enumerate(texts):
+    corrected_text = ""
+    tokens = tokenizer.tokenize(text)
+    for j, token in enumerate(tokens):
+        if predicted_labels[i][j] == 0:
+            corrected_text += token
+        else:
+            corrected_text += labels[i]
+        corrected_text += " "
+    corrected_texts.append(corrected_text.strip())
+
+# Print the original and corrected texts
+for i, text in enumerate(texts):
+    print("Original text:", text)
+    print("Corrected text:", corrected_texts[i])
+    print()
+
+############################################################################
+
+from transformers import AutoTokenizer, AutoModelForTokenClassification
+import torch
+
+# Load pre-trained BERT model and tokenizer
+model_name = "bert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForTokenClassification.from_pretrained(model_name)
+
+# Custom dataset of correct words and misspelled word pairs
+custom_dataset = [
+    ("appl", "apple"),
+    ("bananaz", "bananas"),
+    ("grapee", "grape"),
+    ("chery", "cherry"),
+    ("oraneg", "orange")
+]
+
+# Create a list of correct words
+correct_words = [pair[1] for pair in custom_dataset]
+
+def spell_check(text):
+    # Tokenize the input text
+    tokens = tokenizer.tokenize(text)
+
+    # Map token strings to their corresponding IDs
+    input_ids = tokenizer.convert_tokens_to_ids(tokens)
+
+    # Create tensor input with batch dimension
+    input_tensor = torch.tensor([input_ids])
+
+    # Get the predictions from the model
+    with torch.no_grad():
+        outputs = model(input_tensor)
+
+    # Get the predicted labels for each token
+    predicted_labels = torch.argmax(outputs.logits, dim=2)[0]
+
+    # Replace misspelled tokens with correct words
+    corrected_tokens = []
+    for token, label in zip(tokens, predicted_labels):
+        if token.lower() in correct_words or label.item() == 1:
+            corrected_tokens.append(token)
+        else:
+            corrected_tokens.append(token.lower())
+
+    # Detokenize the corrected tokens
+    corrected_text = tokenizer.convert_tokens_to_string(corrected_tokens)
+
+    return corrected_text
+
+# Example usage
+text = "I like appl and bananaz."
+corrected_text = spell_check(text)
+print("Original text:", text)
+print("Corrected text:", corrected_text)
+
+# Output: Original text: I like appl and bananaz.
+#         Corrected text: I like apple and bananas.
+
+##################################################
+
+from spellchecker import SpellChecker
+from rasa_nlu.training_data import load_data
+from rasa_nlu import config
+from rasa_nlu.model import Trainer, Metadata, Interpreter
+
+# Spell Checker setup
+spell_checker = SpellChecker()
+
+def correct_spelling(text):
+    words = text.split()
+    corrected_words = []
+    for word in words:
+        corrected_word = spell_checker.correction(word)
+        corrected_words.append(corrected_word)
+    corrected_text = ' '.join(corrected_words)
+    return corrected_text
+
+# Load Rasa NLU training data
+training_data_file = "path/to/your/training/data"
+training_data = load_data(training_data_file)
+
+# Define Rasa NLU configuration
+nlu_config = config.load("path/to/your/config.yml")
+
+# Train the Rasa NLU model
+trainer = Trainer(config=nlu_config)
+trainer.train(training_data)
+model_directory = trainer.persist("path/to/save/model")
+
+# Create an Interpreter using the trained model
+interpreter = Interpreter.load(model_directory, nlu_config)
+
+# Process user input and perform spell checking
+def process_user_input(user_input):
+    corrected_text = correct_spelling(user_input)
+    parsed_data = interpreter.parse(corrected_text)
+    return parsed_data
+
+# Validate the spell checker with a validation dataset
+validation_data_file = "path/to/your/validation/data"
+validation_data = load_data(validation_data_file)
+
+for example in validation_data.training_examples:
+    original_text = example.text
+    corrected_text = correct_spelling(original_text)
+    expected_intent = example.get("intent")
+    parsed_data = process_user_input(original_text)
+    predicted_intent = parsed_data.get("intent").get("name")
+    
+    print("User Input:", original_text)
+    print("Corrected Text:", corrected_text)
+    print("Expected Intent:", expected_intent)
+    print("Predicted Intent:", predicted_intent)
+    print("-----------------------------------")
+
+# Test the spell checker with custom user inputs
+user_inputs = [
+    "I want to oder a large peperoni pizza.",
+    "What is the statis of my order?",
+    "Cancel my oder, plese.",
+    "I want to byu a small cofee.",
+    "Can you help me with my qustion?"
+]
+
+for user_input in user_inputs:
+    parsed_data = process_user_input(user_input)
+    print("User Input:", user_input)
+    print("Parsed Data:", parsed_data)
+    print("-----------------------------------")
+
+
+#############################################################
+
+{
+  "rasa_nlu_data": {
+    "common_examples": [
+      {
+        "text": "I want to oder a large peperoni pizza.",
+        "corrected_text": "I want to order a large pepperoni pizza.",
+        "intent": "order_pizza",
+        "entities": []
+      },
+      {
+        "text": "What is the status of my order?",
+        "corrected_text": "What is the status of my order?",
+        "intent": "check_order_status",
+        "entities": []
+      },
+      {
+        "text": "Cancel my order, plese.",
+        "corrected_text": "Cancel my order, please.",
+        "intent": "cancel_order",
+        "entities": []
+      },
+      {
+        "text": "I want to byu a small cofee.",
+        "corrected_text": "I want to buy a small coffee.",
+        "intent": "order_coffee",
+        "entities": []
+      },
+      {
+        "text": "Can you help me with my qustion?",
+        "corrected_text": "Can you help me with my question?",
+        "intent": "get_help",
+        "entities": []
+      },
+      ...
+    ]
+  }
+}
+######################################
+
+def calculate_validation_score(spell_checker, validation_data):
+    total_instances = len(validation_data)
+    correctly_corrected = 0
+
+    for instance in validation_data:
+        original_text = instance['text']
+        corrected_text = instance['corrected_text']
+
+        # Apply spell checker to original text
+        predicted_text = spell_checker.correct_spelling(original_text)
+
+        # Check if the predicted text matches the corrected text
+        if predicted_text == corrected_text:
+            correctly_corrected += 1
+
+    # Calculate accuracy
+    accuracy = correctly_corrected / total_instances
+
+    return accuracy
+
+
+# Assuming you have loaded and trained your spell checker, and have a validation dataset
+# spell_checker = Your trained spell checker instance
+# validation_data = Your validation dataset
+
+# Calculate the validation score
+validation_score = calculate_validation_score(spell_checker, validation_data)
+print("Validation Score: {:.2f}%".format(validation_score * 100))
+
+
+#######################################################
+validate_data = [
+    {
+        "text": "I want to oder a large peperoni pizza.",
+        "corrected_text": "I want to order a large pepperoni pizza."
+    },
+    {
+        "text": "What is the status of my order?",
+        "corrected_text": "What is the status of my order?"
+    },
+    {
+        "text": "Cancel my order, plese.",
+        "corrected_text": "Cancel my order, please."
+    },
+    {
+        "text": "I want to byu a small cofee.",
+        "corrected_text": "I want to buy a small coffee."
+    },
+    {
+        "text": "Can you help me with my qustion?",
+        "corrected_text": "Can you help me with my question?"
+    },
+    # Add more instances as needed
+]
